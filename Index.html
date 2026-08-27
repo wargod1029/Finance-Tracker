@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finance Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+      padding: 20px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    h1 { color: #2d4a6b; text-align: center; }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      margin: 10px 0;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      margin: 6px 0 12px 0;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    button {
+      background: #2d4a6b;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+    }
+    button:active { transform: scale(0.97); }
+    .row { display: flex; gap: 10px; }
+    .row button { flex: 1; }
+    .active-his { 
+      background: #d6eaf8 !important; 
+      color: #1a5276 !important; 
+      border: 2px solid #2e86c1 !important; 
+    }
+    .active-hers { 
+      background: #fadbd8 !important; 
+      color: #922b21 !important; 
+      border: 2px solid #e74c3c !important; 
+    }
+    .entry {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a2332;
+      color: white;
+      padding: 14px 28px;
+      border-radius: 16px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 999;
+    }
+    .toast.show { opacity: 1; }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-top: 4px;
+      font-size: 14px;
+      color: #555;
+    }
+    .current-month-display {
+      background: #e8f0fe;
+      padding: 10px;
+      border-radius: 10px;
+      text-align: center;
+      font-weight: bold;
+      color: #2d4a6b;
+      margin-bottom: 10px;
+    }
+    .entry-person {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+    .person-his { background: #d6eaf8; color: #1a5276; }
+    .person-hers { background: #fadbd8; color: #922b21; }
+    
+    /* Favourites styling */
+    .favourites-section {
+      margin-top: 10px;
+    }
+    .favourites-title {
+      font-size: 14px;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .fav-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .fav-btn {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-radius: 20px;
+      border: 2px solid #ddd;
+      background: #f8f9fa;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin: 2px 0;
+      width: auto;
+      min-width: 60px;
+    }
+    .fav-btn:hover {
+      background: #e9ecef;
+      transform: scale(1.02);
+    }
+    .fav-btn:active { transform: scale(0.95); }
+    .fav-btn.his-fav { border-color: #2e86c1; background: #d6eaf8; color: #1a5276; }
+    .fav-btn.hers-fav { border-color: #e74c3c; background: #fadbd8; color: #922b21; }
+    .fav-btn .fav-price {
+      font-size: 10px;
+      opacity: 0.7;
+      display: block;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<h1>💰 Finance Tracker</h1>
+
+<!-- Current Month Display -->
+<div class="card" style="padding:12px 20px;">
+  <div class="current-month-display" id="currentMonthDisplay">
+    📄 Saving to: January
+  </div>
+  <div style="font-size:12px;color:#888;text-align:center;">
+    💡 Month is automatically detected from the date you select
+  </div>
+</div>
+
+<!-- Person Toggle -->
+<div class="row" style="margin-bottom: 10px;">
+  <button id="btnHis" class="active-his" onclick="setPerson('his')">👨 戰神</button>
+  <button id="btnHers" onclick="setPerson('hers')">👩 紫璃</button>
+</div>
+
+<!-- Form -->
+<div class="card">
+  <label>📅 Date</label>
+  <input type="date" id="entryDate" onchange="updateMonthDisplay()">
+  
+  <label>📂 Category</label>
+  <select id="entryCategory">
+    <option value="個人">個人</option>
+    <option value="一齊">一齊</option>
+    <option value="交通">交通</option>
+    <option value="公司/學校">公司/學校</option>
+    <option value="收入">收入</option>
+  </select>
+  
+  <label>📝 Title</label>
+  <input type="text" id="entryTitle" placeholder="Title / Description">
+  
+  <label>💰 Price (HK$)</label>
+  <input type="number" id="entryPrice" placeholder="0.00" step="0.1">
+  
+  <label>🚌 Route (for Transportation only)</label>
+  <input type="text" id="entryRoute" placeholder="e.g., MTR Tsuen Wan Line" list="routeList">
+  <datalist id="routeList"></datalist>
+  
+  <button onclick="submitEntry()">💾 Add Entry</button>
+</div>
+
+<!-- Favourites Section -->
+<div class="card" id="favouritesCard">
+  <div class="favourites-title">⭐ 我的最愛</div>
+  <div id="favouritesContainer">
+    <div style="color:#888;font-size:14px;text-align:center;padding:10px 0;">
+      Loading favourites...
+    </div>
+  </div>
+</div>
+
+<!-- Entries List -->
+<div class="card">
+  <div id="entriesList">Loading...</div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  // ============ SETUP ============
+  let currentPerson = "his";
+  let favouritesData = { his: [], hers: [] };
+  
+  const monthNames = ["January", "February", "March", "April", "May", "June", 
+                      "July", "August", "September", "October", "November", "December"];
+
+  // ============ GET MONTH FROM DATE ============
+  function getMonthFromDate(dateString) {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return monthNames[date.getMonth()];
+  }
+  
+  // ============ UPDATE MONTH DISPLAY ============
+  function updateMonthDisplay() {
+    const dateInput = document.getElementById('entryDate');
+    const month = getMonthFromDate(dateInput.value);
+    if (month) {
+      document.getElementById('currentMonthDisplay').textContent = '📄 Saving to: ' + month;
+    }
+  }
+  
+  // ============ SET TODAY'S DATE ============
+  document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('entryDate').value = today;
+    updateMonthDisplay();
+    loadEntries();
+    loadRoutes();
+    loadFavourites();
+  });
+  
+  // ============ LOAD ROUTES FOR AUTOCOMPLETE ============
+  function loadRoutes() {
+    google.script.run
+      .withSuccessHandler(function(routes) {
+        const datalist = document.getElementById('routeList');
+        datalist.innerHTML = '';
+        Object.keys(routes).forEach(key => {
+          const opt = document.createElement('option');
+          opt.value = key;
+          datalist.appendChild(opt);
+        });
+      })
+      .getRoutes();
+  }
+  
+  // ============ LOAD FAVOURITES FROM SHEET ============
+  function loadFavourites() {
+    google.script.run
+      .withSuccessHandler(function(data) {
+        favouritesData = data;
+        renderFavourites(currentPerson);
+      })
+      .withFailureHandler(function(err) {
+        console.error('Error loading favourites:', err);
+        document.getElementById('favouritesContainer').innerHTML = 
+          '<div style="color:#888;font-size:14px;text-align:center;padding:10px 0;">❌ Error loading favourites</div>';
+      })
+      .getFavourites();
+  }
+  
+  // ============ PERSON TOGGLE ============
+  function setPerson(person) {
+    currentPerson = person;
+    document.getElementById('btnHis').className = person === 'his' ? 'active-his' : '';
+    document.getElementById('btnHers').className = person === 'hers' ? 'active-hers' : '';
+    renderFavourites(person);
+  }
+  
+  // ============ RENDER FAVOURITES ============
+  function renderFavourites(person) {
+    const container = document.getElementById('favouritesContainer');
+    const favList = favouritesData[person] || [];
+    
+    if (favList.length === 0) {
+      container.innerHTML = '<div style="color:#888;font-size:14px;text-align:center;padding:10px 0;">No favourites yet</div>';
+      return;
+    }
+    
+    const personClass = person === 'his' ? 'his-fav' : 'hers-fav';
+    let html = '<div class="fav-grid">';
+    
+    favList.forEach((fav, index) => {
+      html += `
+        <button class="fav-btn ${personClass}" onclick="useFavourite(${index})">
+          ${fav.title}
+          <span class="fav-price">$${parseFloat(fav.price).toFixed(2)}</span>
+        </button>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }
+  
+  // ============ USE FAVOURITE ============
+  function useFavourite(index) {
+    const fav = favouritesData[currentPerson][index];
+    if (!fav) return;
+    
+    // Fill the form
+    document.getElementById('entryTitle').value = fav.title;
+    document.getElementById('entryPrice').value = fav.price;
+    document.getElementById('entryCategory').value = fav.category || '交通';
+    document.getElementById('entryRoute').value = fav.route || '';
+    
+    showToast('📋 Filled: ' + fav.title);
+  }
+  
+  // ============ SUBMIT ============
+  function submitEntry() {
+    const date = document.getElementById('entryDate').value;
+    const month = getMonthFromDate(date);
+    
+    if (!date) {
+      showToast('⚠️ Please select a date');
+      return;
+    }
+    
+    if (!month) {
+      showToast('⚠️ Invalid date');
+      return;
+    }
+    
+    const category = document.getElementById('entryCategory').value;
+    const title = document.getElementById('entryTitle').value.trim();
+    const price = parseFloat(document.getElementById('entryPrice').value) || 0;
+    const routeInput = document.getElementById('entryRoute').value.trim();
+    
+    if (!title) {
+      showToast('⚠️ Please enter a title');
+      return;
+    }
+    
+    const data = {
+      month: month,
+      person: currentPerson,
+      date: date,
+      category: category,
+      title: title,
+      price: price,
+      routeInput: routeInput
+    };
+    
+    console.log('Saving to sheet:', month);
+    console.log('Data:', data);
+    
+    google.script.run
+      .withSuccessHandler(function(result) {
+        showToast(result.message || '✅ Saved!');
+        loadEntries(month);
+        document.getElementById('entryTitle').value = '';
+        document.getElementById('entryPrice').value = '';
+        document.getElementById('entryRoute').value = '';
+      })
+      .withFailureHandler(function(err) {
+        showToast('❌ Error: ' + err);
+        console.error('Error:', err);
+      })
+      .addEntry(data);
+  }
+  
+  // ============ LOAD ENTRIES ============
+  function loadEntries(month) {
+    if (!month) {
+      const date = document.getElementById('entryDate').value;
+      month = getMonthFromDate(date);
+      if (!month) {
+        document.getElementById('entriesList').innerHTML = '📭 Select a date first';
+        return;
+      }
+    }
+    
+    google.script.run
+      .withSuccessHandler(function(data) {
+        renderEntries(data);
+      })
+      .withFailureHandler(function(err) {
+        document.getElementById('entriesList').innerHTML = '❌ Error loading: ' + err;
+        console.error('Load error:', err);
+      })
+      .getEntries(month);
+  }
+  
+  // ============ RENDER ============
+  function renderEntries(data) {
+    const allEntries = [...(data.his || []), ...(data.hers || [])];
+    if (allEntries.length === 0) {
+      document.getElementById('entriesList').innerHTML = '📭 No entries yet for this month';
+      return;
+    }
+    
+    let html = '';
+    allEntries.forEach(entry => {
+      const price = parseFloat(entry.price) || 0;
+      const isIncome = entry.category === '收入' || entry.category === 'Income';
+      const sign = isIncome ? '+' : '-';
+      const color = isIncome ? 'green' : 'red';
+      const personClass = entry.person === '戰神' ? 'person-his' : 'person-hers';
+      const routeHtml = entry.route ? `<span style="font-size:11px;color:#888;margin-left:6px;">🚌 ${entry.route}</span>` : '';
+      
+      html += `
+        <div class="entry">
+          <div>
+            <strong>${entry.title}</strong>
+            <span class="entry-person ${personClass}">${entry.person}</span>
+            <br>
+            <small>${entry.date} · ${entry.category} ${routeHtml}</small>
+          </div>
+          <div style="font-weight:bold;color:${color}">
+            ${sign}$${price.toFixed(2)}
+          </div>
+        </div>
+      `;
+    });
+    document.getElementById('entriesList').innerHTML = html;
+  }
+  
+  // ============ TOAST ============
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+</script>
+
+</body>
+</html>

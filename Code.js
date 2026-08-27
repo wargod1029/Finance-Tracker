@@ -1,8 +1,105 @@
-// Code.js deployed version 3
-
 // ============ CONFIGURATION ============
 const LOOKUP_SHEET = "Lookup";
 const CATEGORIES = ["個人", "一齊", "交通", "公司/學校", "收入"];
+
+
+// ============ GET FAVOURITES ============
+function getFavourites() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(LOOKUP_SHEET);
+  if (!sheet) return { his: [], hers: [] };
+  
+  const data = sheet.getDataRange().getValues();
+  const his = [];
+  const hers = [];
+  
+  // Look for headers: Person, Title, Price, Category, Route
+  // Assuming the sheet has these columns in order
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (!row[0]) continue; // Skip empty rows
+    
+    const person = row[0] ? row[0].toString().trim() : '';
+    const title = row[1] ? row[1].toString().trim() : '';
+    const price = parseFloat(row[2]) || 0;
+    const category = row[3] ? row[3].toString().trim() : '交通';
+    const route = row[4] ? row[4].toString().trim() : '';
+    
+    if (!title) continue;
+    
+    const fav = {
+      title: title,
+      price: price,
+      category: category,
+      route: route
+    };
+    
+    if (person === '戰神') {
+      his.push(fav);
+    } else if (person === '紫璃') {
+      hers.push(fav);
+    }
+  }
+  
+  return { his, hers };
+}
+
+// ============ ADD FAVOURITE (Optional) ============
+function addFavourite(person, title, price, category, route) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName(LOOKUP_SHEET);
+    
+    if (!sheet) {
+      sheet = ss.insertSheet(LOOKUP_SHEET);
+      const headers = ["Person", "Title", "Price", "Category", "Route"];
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+    
+    const lastRow = sheet.getLastRow();
+    const newRow = Math.max(lastRow + 1, 2);
+    
+    const rowData = [
+      person === 'his' ? '戰神' : '紫璃',
+      title,
+      parseFloat(price) || 0,
+      category || '交通',
+      route || ''
+    ];
+    
+    sheet.getRange(newRow, 1, 1, rowData.length).setValues([rowData]);
+    
+    return { 
+      success: true, 
+      message: '✅ Favourite added!'
+    };
+  } catch (error) {
+    return { success: false, message: '❌ Error: ' + error.toString() };
+  }
+}
+
+// ============ DELETE FAVOURITE (Optional) ============
+function deleteFavourite(person, title) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(LOOKUP_SHEET);
+    if (!sheet) return { success: false, message: 'Sheet not found' };
+    
+    const data = sheet.getDataRange().getValues();
+    const personName = person === 'his' ? '戰神' : '紫璃';
+    
+    for (let i = data.length - 1; i > 0; i--) {
+      if (data[i][0] === personName && data[i][1] === title) {
+        sheet.deleteRow(i + 1);
+        return { success: true, message: '🗑️ Favourite deleted!' };
+      }
+    }
+    
+    return { success: false, message: 'Favourite not found' };
+  } catch (error) {
+    return { success: false, message: '❌ Error: ' + error.toString() };
+  }
+}
 
 // ============ DO GET ============
 function doGet() {
