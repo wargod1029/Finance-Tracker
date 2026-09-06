@@ -303,6 +303,74 @@
     /* small tweaks */
     .mt-1 { margin-top: 6px; }
     .text-center { text-align: center; }
+
+    /* ----- SUMMARY PAGE ----- */
+    .summary-page {
+      padding: 4px 0;
+    }
+    .summary-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .summary-header h2 {
+      color: #1e3a5f;
+      font-size: 22px;
+    }
+    .summary-month {
+      flex: 1;
+      max-width: 170px;
+      padding: 9px 10px;
+      border: 2px solid #dfe8f0;
+      border-radius: 14px;
+      background: white;
+      color: #1e3a5f;
+      font-size: 14px;
+    }
+    .summary-month:focus {
+      border-color: #2a6b9e;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(42,107,158,0.15);
+    }
+    .summary-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 16px;
+      border-radius: 16px;
+      margin-bottom: 14px;
+      font-weight: 600;
+    }
+    .summary-total.his-total { background: #e1edfa; color: #1a4570; }
+    .summary-total.hers-total { background: #fae7e4; color: #91443e; }
+    .summary-total.together-total { background: #eef1f4; color: #3d5369; }
+    .summary-total strong { font-size: 20px; }
+    .summary-section {
+      border-top: 1px solid #ebf0f6;
+      padding-top: 14px;
+      margin-top: 18px;
+    }
+    .summary-section h3 {
+      color: #1e3a5f;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #ebf0f6;
+      color: #3d5a78;
+    }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-row strong { color: #1e2b3c; }
+    .summary-status {
+      color: #7b8fa3;
+      text-align: center;
+      padding: 28px 0;
+    }
   </style>
 </head>
 <body>
@@ -378,14 +446,14 @@
     </div>
   </div>
 
-  <!-- ========== SUMMARY PAGE (placeholder) ========== -->
+  <!-- ========== SUMMARY PAGE ========== -->
   <div id="page-summary" class="page">
-    <div class="placeholder-page">
-      <h2>📊 Summary</h2>
-      <p>Monthly summary per person (coming soon)</p>
-      <div style="margin-top:20px;background:#f4f8fe;padding:20px;border-radius:30px;font-size:14px;color:#3d5a78;">
-        ⏳ Placeholder – detailed breakdown will appear here.
+    <div class="summary-page">
+      <div class="summary-header">
+        <h2>📊 Summary</h2>
+        <select id="summaryMonth" class="summary-month" aria-label="Summary month"></select>
       </div>
+      <div id="summaryContent" class="summary-status">Loading...</div>
     </div>
   </div>
 
@@ -430,6 +498,7 @@
       const page = this.dataset.page;
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
       document.getElementById('page-' + page).classList.add('active-page');
+      if (page === 'summary') loadSummary();
     });
   });
 
@@ -454,6 +523,7 @@
     loadEntries();
     loadRoutes();
     loadFavourites();
+    loadSummaryMonths();
   });
 
   // ===================== LOAD ROUTES =====================
@@ -469,6 +539,76 @@
         });
       })
       .getRoutes();
+  }
+
+  // ===================== SUMMARY =====================
+  function loadSummaryMonths() {
+    google.script.run
+      .withSuccessHandler(function(months) {
+        const select = document.getElementById('summaryMonth');
+        const currentMonth = getMonthFromDate(document.getElementById('entryDate').value);
+        const availableMonths = Array.isArray(months) ? months : [];
+        const options = availableMonths.slice();
+        if (currentMonth && !options.includes(currentMonth)) options.push(currentMonth);
+        options.sort((a, b) => monthNames.indexOf(a) - monthNames.indexOf(b));
+        select.innerHTML = options.map(month => `<option value="${month}">${month}</option>`).join('');
+        if (currentMonth && options.includes(currentMonth)) select.value = currentMonth;
+        select.onchange = loadSummary;
+        loadSummary();
+      })
+      .withFailureHandler(function() {
+        document.getElementById('summaryContent').innerHTML = '<div class="summary-status">❌ Error loading months</div>';
+      })
+      .getMonths();
+  }
+
+  function loadSummary() {
+    const month = document.getElementById('summaryMonth').value;
+    if (!month) {
+      document.getElementById('summaryContent').innerHTML = '<div class="summary-status">📭 No month selected</div>';
+      return;
+    }
+    document.getElementById('summaryContent').innerHTML = '<div class="summary-status">Loading...</div>';
+    google.script.run
+      .withSuccessHandler(renderSummary)
+      .withFailureHandler(function() {
+        document.getElementById('summaryContent').innerHTML = '<div class="summary-status">❌ Error loading summary</div>';
+      })
+      .getSummary(month);
+  }
+
+  function formatMoney(value) {
+    return '$' + (parseFloat(value) || 0).toFixed(2);
+  }
+
+  function renderSummary(summary) {
+    const categoryNames = ['個人', '一齊', '交通', '公司/學校'];
+    const renderRows = function(categories) {
+      return categoryNames.map(category => `
+        <div class="summary-row">
+          <span>${category}</span><strong>${formatMoney((categories || {})[category])}</strong>
+        </div>
+      `).join('');
+    };
+
+    document.getElementById('summaryContent').innerHTML = `
+      <div class="summary-total his-total"><span>👨 戰神 expenses</span><strong>${formatMoney(summary.hisTotal)}</strong></div>
+      <div class="summary-total hers-total"><span>👩 紫璃 expenses</span><strong>${formatMoney(summary.hersTotal)}</strong></div>
+      <div class="summary-total together-total"><span>一齊 total</span><strong>${formatMoney(summary.togetherTotal)}</strong></div>
+      <div class="summary-section">
+        <h3>👨 戰神 by category</h3>
+        ${renderRows(summary.hisByCategory)}
+      </div>
+      <div class="summary-section">
+        <h3>👩 紫璃 by category</h3>
+        ${renderRows(summary.hersByCategory)}
+      </div>
+      <div class="summary-section">
+        <h3>💵 Income</h3>
+        <div class="summary-row"><span>戰神</span><strong>${formatMoney(summary.hisIncome)}</strong></div>
+        <div class="summary-row"><span>紫璃</span><strong>${formatMoney(summary.hersIncome)}</strong></div>
+      </div>
+    `;
   }
 
   // ===================== FAVOURITES =====================
