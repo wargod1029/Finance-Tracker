@@ -269,3 +269,69 @@ function getSummary(month) {
   
   return summary;
 }
+
+// ============ GET AVAILABLE YEARS ============
+function getYears() {
+  const years = {};
+  getMonths().forEach(month => {
+    const data = getEntries(month);
+    [...data.his, ...data.hers].forEach(entry => {
+      const year = getEntryYear(entry.date);
+      if (year) years[year] = true;
+    });
+  });
+  return Object.keys(years).sort();
+}
+
+function getEntryYear(dateValue) {
+  if (!dateValue) return null;
+  if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+    return Utilities.formatDate(dateValue, Session.getScriptTimeZone(), "yyyy");
+  }
+
+  const dateText = dateValue.toString().trim();
+  const yearMatch = dateText.match(/^(\d{4})[-\/]/);
+  if (yearMatch) return yearMatch[1];
+
+  const parsedDate = new Date(dateText);
+  return isNaN(parsedDate.getTime()) ? null : parsedDate.getFullYear().toString();
+}
+
+// ============ GET YEAR SUMMARY ============
+function getYearSummary(year) {
+  const selectedYear = year.toString();
+  const summary = {
+    year: selectedYear,
+    hisTotal: 0,
+    hersTotal: 0,
+    togetherTotal: 0,
+    hisIncome: 0,
+    hersIncome: 0,
+    hisByCategory: {},
+    hersByCategory: {}
+  };
+
+  getMonths().forEach(month => {
+    const data = getEntries(month);
+    [...data.his, ...data.hers].forEach(entry => {
+      if (getEntryYear(entry.date) !== selectedYear) return;
+
+      const price = parseFloat(entry.price) || 0;
+      const isHis = entry.person === "戰神";
+      const byCategory = isHis ? summary.hisByCategory : summary.hersByCategory;
+
+      if (entry.category === "收入") {
+        if (isHis) summary.hisIncome += price;
+        else summary.hersIncome += price;
+        return;
+      }
+
+      if (isHis) summary.hisTotal += price;
+      else summary.hersTotal += price;
+      byCategory[entry.category] = (byCategory[entry.category] || 0) + price;
+      if (entry.category === "一齊") summary.togetherTotal += price;
+    });
+  });
+
+  return summary;
+}

@@ -424,7 +424,7 @@
 <div class="app-banner">
   <h1>
     💰 Finance Tracker
-    <small>V10</small>
+    <small>V11</small>
   </h1>
   <!-- Navigation Tabs -->
   <div class="nav-tabs">
@@ -518,14 +518,14 @@
     </div>
   </div>
 
-  <!-- ========== YEAR PAGE (placeholder) ========== -->
+  <!-- ========== YEAR PAGE ========== -->
   <div id="page-year" class="page">
-    <div class="placeholder-page">
-      <h2>📅 Year Report</h2>
-      <p>Annual overview by month</p>
-      <div style="margin-top:20px;background:#f4f8fe;padding:20px;border-radius:30px;font-size:14px;color:#3d5a78;">
-        🗓️ Placeholder – yearly trends & summaries.
+    <div class="summary-page">
+      <div class="summary-header">
+        <h2>📅 Year Summary</h2>
+        <select id="summaryYear" class="summary-month" aria-label="Summary year"></select>
       </div>
+      <div id="yearSummaryContent" class="summary-status">Loading...</div>
     </div>
   </div>
 
@@ -550,6 +550,7 @@
       document.getElementById('page-' + page).classList.add('active-page');
       if (page === 'summary') loadSummary();
       if (page === 'compare') loadCompare();
+      if (page === 'year') loadYearSummary();
     });
   });
 
@@ -575,6 +576,7 @@
     loadRoutes();
     loadFavourites();
     loadSummaryMonths();
+    loadYears();
   });
 
   // ===================== LOAD ROUTES =====================
@@ -617,6 +619,25 @@
       .getMonths();
   }
 
+  function loadYears() {
+    google.script.run
+      .withSuccessHandler(function(years) {
+        const select = document.getElementById('summaryYear');
+        const currentYear = new Date().getFullYear().toString();
+        const options = (Array.isArray(years) ? years : []).map(String);
+        if (!options.includes(currentYear)) options.push(currentYear);
+        options.sort((a, b) => Number(b) - Number(a));
+        select.innerHTML = options.map(year => `<option value="${year}">${year}</option>`).join('');
+        select.value = currentYear;
+        select.onchange = loadYearSummary;
+        loadYearSummary();
+      })
+      .withFailureHandler(function() {
+        document.getElementById('yearSummaryContent').innerHTML = '<div class="summary-status">❌ Error loading years</div>';
+      })
+      .getYears();
+  }
+
   function loadSummary() {
     const month = document.getElementById('summaryMonth').value;
     if (!month) {
@@ -630,6 +651,21 @@
         document.getElementById('summaryContent').innerHTML = '<div class="summary-status">❌ Error loading summary</div>';
       })
       .getSummary(month);
+  }
+
+  function loadYearSummary() {
+    const year = document.getElementById('summaryYear').value;
+    if (!year) {
+      document.getElementById('yearSummaryContent').innerHTML = '<div class="summary-status">📭 No year selected</div>';
+      return;
+    }
+    document.getElementById('yearSummaryContent').innerHTML = '<div class="summary-status">Loading...</div>';
+    google.script.run
+      .withSuccessHandler(renderYearSummary)
+      .withFailureHandler(function() {
+        document.getElementById('yearSummaryContent').innerHTML = '<div class="summary-status">❌ Error loading year summary</div>';
+      })
+      .getYearSummary(year);
   }
 
   function formatMoney(value) {
@@ -738,6 +774,51 @@
     const categoryColors = ['#5b8def', '#78bfa3', '#f0ae62', '#d97979'];
     renderPersonChart('hisCompositionChart', 'hisCompositionLegend', categoryLabels, summary.hisByCategory, categoryColors);
     renderPersonChart('hersCompositionChart', 'hersCompositionLegend', categoryLabels, summary.hersByCategory, categoryColors);
+  }
+
+  function renderYearSummary(summary) {
+    const categoryNames = ['個人', '一齊', '交通', '公司/學校'];
+    const renderRows = function(categories) {
+      return categoryNames.map(category => `
+        <div class="summary-row">
+          <span>${category}</span><strong>${formatMoney((categories || {})[category])}</strong>
+        </div>
+      `).join('');
+    };
+
+    document.getElementById('yearSummaryContent').innerHTML = `
+      <div class="summary-total his-total"><span>👨 戰神 ${summary.year} expenses</span><strong>${formatMoney(summary.hisTotal)}</strong></div>
+      <div class="summary-total hers-total"><span>👩 紫璃 ${summary.year} expenses</span><strong>${formatMoney(summary.hersTotal)}</strong></div>
+      <div class="summary-total together-total"><span>一齊 ${summary.year} total</span><strong>${formatMoney(summary.togetherTotal)}</strong></div>
+      <div class="summary-section">
+        <h3>👨 戰神 yearly by category</h3>
+        ${renderRows(summary.hisByCategory)}
+      </div>
+      <div class="chart-card">
+        <h3>👨 戰神 yearly expense composition</h3>
+        <canvas id="yearHisCompositionChart" class="pie-chart" width="420" height="420"></canvas>
+        <div id="yearHisCompositionLegend" class="chart-legend"></div>
+      </div>
+      <div class="summary-section">
+        <h3>👩 紫璃 yearly by category</h3>
+        ${renderRows(summary.hersByCategory)}
+      </div>
+      <div class="chart-card">
+        <h3>👩 紫璃 yearly expense composition</h3>
+        <canvas id="yearHersCompositionChart" class="pie-chart" width="420" height="420"></canvas>
+        <div id="yearHersCompositionLegend" class="chart-legend"></div>
+      </div>
+      <div class="summary-section">
+        <h3>💵 Yearly income</h3>
+        <div class="summary-row"><span>戰神</span><strong>${formatMoney(summary.hisIncome)}</strong></div>
+        <div class="summary-row"><span>紫璃</span><strong>${formatMoney(summary.hersIncome)}</strong></div>
+      </div>
+    `;
+
+    const categoryLabels = ['一齊', '個人', '交通', '公司/學校'];
+    const categoryColors = ['#5b8def', '#78bfa3', '#f0ae62', '#d97979'];
+    renderPersonChart('yearHisCompositionChart', 'yearHisCompositionLegend', categoryLabels, summary.hisByCategory, categoryColors);
+    renderPersonChart('yearHersCompositionChart', 'yearHersCompositionLegend', categoryLabels, summary.hersByCategory, categoryColors);
   }
 
   function loadCompare() {
