@@ -371,6 +371,51 @@
       text-align: center;
       padding: 28px 0;
     }
+    .chart-card {
+      background: #f9fcff;
+      border: 1px solid #eaf0f6;
+      border-radius: 18px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+    .chart-card h3 {
+      color: #1e3a5f;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .pie-chart {
+      display: block;
+      width: 210px;
+      height: 210px;
+      max-width: 100%;
+      margin: 0 auto 12px;
+    }
+    .chart-legend {
+      display: grid;
+      gap: 7px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: #3d5a78;
+      font-size: 13px;
+    }
+    .legend-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .legend-swatch {
+      width: 11px;
+      height: 11px;
+      border-radius: 3px;
+      flex: 0 0 auto;
+    }
+    .compare-page {
+      padding: 4px 0;
+    }
   </style>
 </head>
 <body>
@@ -379,7 +424,7 @@
 <div class="app-banner">
   <h1>
     💰 Finance Tracker
-    <small>v2</small>
+    <small>V10</small>
   </h1>
   <!-- Navigation Tabs -->
   <div class="nav-tabs">
@@ -459,11 +504,16 @@
 
   <!-- ========== COMPARE PAGE (placeholder) ========== -->
   <div id="page-compare" class="page">
-    <div class="placeholder-page">
-      <h2>⚖️ Compare</h2>
-      <p>Side-by-side monthly spending (his vs hers)</p>
-      <div style="margin-top:20px;background:#f4f8fe;padding:20px;border-radius:30px;font-size:14px;color:#3d5a78;">
-        📌 Placeholder – comparison charts & totals.
+    <div class="compare-page">
+      <div class="summary-header">
+        <h2>⚖️ Compare</h2>
+        <select id="compareMonth" class="summary-month" aria-label="Compare month"></select>
+      </div>
+      <div id="compareContent" class="summary-status">Loading...</div>
+      <div id="compareChartCard" class="chart-card" hidden>
+        <h3>一齊 expense</h3>
+        <canvas id="togetherCompareChart" class="pie-chart" width="420" height="420"></canvas>
+        <div id="togetherCompareLegend" class="chart-legend"></div>
       </div>
     </div>
   </div>
@@ -499,6 +549,7 @@
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
       document.getElementById('page-' + page).classList.add('active-page');
       if (page === 'summary') loadSummary();
+      if (page === 'compare') loadCompare();
     });
   });
 
@@ -546,14 +597,18 @@
     google.script.run
       .withSuccessHandler(function(months) {
         const select = document.getElementById('summaryMonth');
+        const compareSelect = document.getElementById('compareMonth');
         const currentMonth = getMonthFromDate(document.getElementById('entryDate').value);
         const availableMonths = Array.isArray(months) ? months : [];
         const options = availableMonths.slice();
         if (currentMonth && !options.includes(currentMonth)) options.push(currentMonth);
         options.sort((a, b) => monthNames.indexOf(a) - monthNames.indexOf(b));
         select.innerHTML = options.map(month => `<option value="${month}">${month}</option>`).join('');
+        compareSelect.innerHTML = select.innerHTML;
         if (currentMonth && options.includes(currentMonth)) select.value = currentMonth;
+        if (currentMonth && options.includes(currentMonth)) compareSelect.value = currentMonth;
         select.onchange = loadSummary;
+        compareSelect.onchange = loadCompare;
         loadSummary();
       })
       .withFailureHandler(function() {
@@ -581,6 +636,65 @@
     return '$' + (parseFloat(value) || 0).toFixed(2);
   }
 
+  function drawPieChart(canvas, values, colors) {
+    const context = canvas.getContext('2d');
+    const size = Math.min(canvas.clientWidth || 210, canvas.clientHeight || 210);
+    const pixelRatio = window.devicePixelRatio || 1;
+    canvas.width = size * pixelRatio;
+    canvas.height = size * pixelRatio;
+    context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    context.clearRect(0, 0, size, size);
+
+    const total = values.reduce((sum, value) => sum + value, 0);
+    const center = size / 2;
+    const radius = size * 0.43;
+    if (!total) {
+      context.beginPath();
+      context.moveTo(center, center);
+      context.arc(center, center, radius, 0, Math.PI * 2);
+      context.fillStyle = '#e5ebf1';
+      context.fill();
+      return false;
+    }
+
+    let startAngle = -Math.PI / 2;
+    values.forEach((value, index) => {
+      if (value <= 0) return;
+      const endAngle = startAngle + (value / total) * Math.PI * 2;
+      context.beginPath();
+      context.moveTo(center, center);
+      context.arc(center, center, radius, startAngle, endAngle);
+      context.closePath();
+      context.fillStyle = colors[index];
+      context.fill();
+      startAngle = endAngle;
+    });
+
+    context.beginPath();
+    context.arc(center, center, radius * 0.52, 0, Math.PI * 2);
+    context.fillStyle = '#ffffff';
+    context.fill();
+    return true;
+  }
+
+  function renderChartLegend(container, labels, values, colors) {
+    const total = values.reduce((sum, value) => sum + value, 0);
+    container.innerHTML = labels.map((label, index) => {
+      const value = values[index];
+      const percentage = total ? Math.round((value / total) * 100) : 0;
+      return `<div class="legend-item">
+        <span class="legend-label"><span class="legend-swatch" style="background:${colors[index]}"></span>${label}</span>
+        <strong>${formatMoney(value)} (${percentage}%)</strong>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPersonChart(canvasId, legendId, labels, categories, colors) {
+    const values = labels.map(label => parseFloat((categories || {})[label]) || 0);
+    drawPieChart(document.getElementById(canvasId), values, colors);
+    renderChartLegend(document.getElementById(legendId), labels, values, colors);
+  }
+
   function renderSummary(summary) {
     const categoryNames = ['個人', '一齊', '交通', '公司/學校'];
     const renderRows = function(categories) {
@@ -599,9 +713,19 @@
         <h3>👨 戰神 by category</h3>
         ${renderRows(summary.hisByCategory)}
       </div>
+      <div class="chart-card">
+        <h3>👨 戰神 expense composition</h3>
+        <canvas id="hisCompositionChart" class="pie-chart" width="420" height="420"></canvas>
+        <div id="hisCompositionLegend" class="chart-legend"></div>
+      </div>
       <div class="summary-section">
         <h3>👩 紫璃 by category</h3>
         ${renderRows(summary.hersByCategory)}
+      </div>
+      <div class="chart-card">
+        <h3>👩 紫璃 expense composition</h3>
+        <canvas id="hersCompositionChart" class="pie-chart" width="420" height="420"></canvas>
+        <div id="hersCompositionLegend" class="chart-legend"></div>
       </div>
       <div class="summary-section">
         <h3>💵 Income</h3>
@@ -609,6 +733,45 @@
         <div class="summary-row"><span>紫璃</span><strong>${formatMoney(summary.hersIncome)}</strong></div>
       </div>
     `;
+
+    const categoryLabels = ['一齊', '個人', '交通', '公司/學校'];
+    const categoryColors = ['#5b8def', '#78bfa3', '#f0ae62', '#d97979'];
+    renderPersonChart('hisCompositionChart', 'hisCompositionLegend', categoryLabels, summary.hisByCategory, categoryColors);
+    renderPersonChart('hersCompositionChart', 'hersCompositionLegend', categoryLabels, summary.hersByCategory, categoryColors);
+  }
+
+  function loadCompare() {
+    const month = document.getElementById('compareMonth').value;
+    const content = document.getElementById('compareContent');
+    const chartCard = document.getElementById('compareChartCard');
+    if (!month) {
+      content.innerHTML = '<div class="summary-status">📭 No month selected</div>';
+      chartCard.hidden = true;
+      return;
+    }
+    content.innerHTML = '<div class="summary-status">Loading...</div>';
+    chartCard.hidden = true;
+    google.script.run
+      .withSuccessHandler(renderCompare)
+      .withFailureHandler(function() {
+        content.innerHTML = '<div class="summary-status">❌ Error loading comparison</div>';
+      })
+      .getSummary(month);
+  }
+
+  function renderCompare(summary) {
+    const values = [
+      parseFloat((summary.hisByCategory || {})['一齊']) || 0,
+      parseFloat((summary.hersByCategory || {})['一齊']) || 0
+    ];
+    const labels = ['戰神', '紫璃'];
+    const colors = ['#5b8def', '#d97979'];
+    document.getElementById('compareContent').innerHTML = values.some(value => value > 0)
+      ? '<div class="summary-status">一齊 expense comparison</div>'
+      : '<div class="summary-status">📭 No 一齊 expenses this month</div>';
+    document.getElementById('compareChartCard').hidden = !values.some(value => value > 0);
+    drawPieChart(document.getElementById('togetherCompareChart'), values, colors);
+    renderChartLegend(document.getElementById('togetherCompareLegend'), labels, values, colors);
   }
 
   // ===================== FAVOURITES =====================
